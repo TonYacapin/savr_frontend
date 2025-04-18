@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: rgba(204, 179, 179, 0.87);
+  background-color: #242424;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* General styles */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #D1E8E2; /* Sage Green */
+  color: #2F3E46; /* Slate Gray */
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #8EC6D7; /* Sky Blue */
+  text-decoration: none;
+  transition: color 0.25s;
+}
+
+a:hover {
+  color: #B388EB; /* Soft Violet */
+}
+
+button {
+  font-family: inherit;
+  background-color: #F4A261; /* Soft Orange */
+  color: #fff;
+  border: 2px solid #6B5B4C; /* Warm Taupe */
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.25s;
+}
+
+button:hover {
+  border-color: #8EC6D7; /* Sky Blue */
+  background-color: #e08e4f; /* Slightly darker Soft Orange */
+}
+
+button:focus,
+button:focus-visible {
+  outline: 4px auto #F4A261; /* Soft Orange */
+}
+
+input,
+textarea {
+  font-family: inherit;
+  border: 1px solid #6B5B4C; /* Warm Taupe */
+  border-radius: 4px;
+  padding: 8px;
+  background-color: #F1F2F6; /* Cool Light Gray */
+  color: #2F3E46; /* Slate Gray */
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #8EC6D7; /* Sky Blue */
+  box-shadow: 0 0 0 3px rgba(142, 198, 215, 0.5); /* Sky Blue glow */
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #F1F2F6; /* Cool Light Gray */
+    background-color: #213547; /* Sage Green */
+  }
+
+  body {
+    background-color: #213547; /* Sage Green */
+    color: #F1F2F6; /* Cool Light Gray */
+  }
+
+  a:hover {
+    color: #B388EB; /* Soft Violet */
+  }
+
+  button {
+    background-color: #6B5B4C; /* Warm Taupe */
+    color: #F1F2F6; /* Cool Light Gray */
+  }
+
+  button:hover {
+    background-color: #8EC6D7; /* Sky Blue */
+    border-color: #F4A261; /* Soft Orange */
+  }
+
+  input,
+  textarea {
+    background-color: #2F3E46; /* Slate Gray */
+    color: #F1F2F6; /* Cool Light Gray */
+    border-color: #8EC6D7; /* Sky Blue */
+  }
+
+  input:focus,
+  textarea:focus {
+    border-color: #F4A261; /* Soft Orange */
+    box-shadow: 0 0 0 3px rgba(244, 162, 97, 0.5); /* Soft Orange glow */
+  }
+}
