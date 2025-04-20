@@ -1,61 +1,98 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { motion } from 'framer-motion';
 
 const SavingPlan = () => {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // States for creating a new plan
+  const [rewardPet, setRewardPet] = useState(null);
   const [goalAmount, setGoalAmount] = useState(1000);
   const [duration, setDuration] = useState(30); // days
-  
-  // State for updating the current plan
-  const [savingAmount, setSavingAmount] = useState(0);
-  
-  // Predefined plans
-  const predefinedPlans = [
-    { name: "Vacation Fund", amount: 1000, duration: 30 },
-    { name: "Emergency Fund", amount: 5000, duration: 90 },
-    { name: "New Phone", amount: 800, duration: 45 },
-    { name: "Holiday Gifts", amount: 500, duration: 60 },
-    { name: "Car Repair", amount: 1500, duration: 60 }
-  ];
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [canSaveToday, setCanSaveToday] = useState(true);
+  const [dailyAmount, setDailyAmount] = useState(0);
 
   useEffect(() => {
     fetchUserSavingPlan();
   }, []);
 
+  useEffect(() => {
+    console.log('Current plan:', plan);
+    console.log('Daily amount type:', typeof dailyAmount);
+    console.log('Goal amount type:', typeof goalAmount);
+    console.log('Duration type:', typeof duration);
+  }, [plan, dailyAmount, goalAmount, duration]);
+
   const fetchUserSavingPlan = async () => {
     try {
       setLoading(true);
       const response = await axiosInstance.get('/savingplans');
+      console.log('response', JSON.stringify(response.data));
+      
       if (response.data && response.data.length > 0) {
-        setPlan(response.data[0]); // Assuming we're getting the latest plan
+        // Find the first active (incomplete) plan, or fall back to the first completed plan
+        const activePlan = response.data.find(plan => !plan.isCompleted);
+        const currentPlan = activePlan || response.data[0];
+        
+        setPlan(currentPlan);
+        
+        if (currentPlan.isCompleted && currentPlan.petReward) {
+          // Fetch pet reward details if needed
+          try {
+            const petResponse = await axiosInstance.get(`/pets/${currentPlan.petReward}`);
+            setRewardPet(petResponse.data);
+          } catch (petError) {
+            console.error('Error fetching pet reward:', petError);
+          }
+        }
+        
+        // Calculate daily amount when plan is first loaded
+        if (currentPlan && !currentPlan.isCompleted) {
+          const daysRemaining = currentPlan.daysRemaining || 
+            Math.max(1, Math.ceil((new Date(currentPlan.endDate) - new Date()) / (1000 * 60 * 60 * 24)));
+          const remainingAmount = currentPlan.remainingAmount || 
+            (currentPlan.goalAmount - currentPlan.currentlySaved);
+          const calculatedDaily = currentPlan.adjustedDailyAmount || 
+            Math.ceil(remainingAmount / daysRemaining);
+          setDailyAmount(calculatedDaily);
+        }
+        
+        // Check if user already saved today
+        if (currentPlan.lastSavedDate) {
+          const lastSaved = new Date(currentPlan.lastSavedDate);
+          const today = new Date();
+          setCanSaveToday(!(lastSaved.toDateString() === today.toDateString()));
+        } else {
+          setCanSaveToday(true);
+        }
       } else {
         setPlan(null);
       }
       setLoading(false);
     } catch (error) {
-        console.error('Error fetching saving plan:', error);
+      console.error('Error fetching saving plan:', error);
       setError('Failed to fetch your saving plan');
       setLoading(false);
     }
   };
-
-  const selectPredefinedPlan = (selectedPlan) => {
-    setGoalAmount(selectedPlan.amount);
-    setDuration(selectedPlan.duration);
-  };
-
   const createSavingPlan = async () => {
     try {
       setLoading(true);
       const response = await axiosInstance.post('/savingplans/create', {
         goalAmount,
-        duration
+        duration,
       });
-      setPlan(response.data.savingPlan);
+      
+      const newPlan = response.data.savingPlan;
+      setPlan(newPlan);
+      setRewardPet(null);
+      
+      // Calculate daily amount
+      const daily = Math.ceil(newPlan.goalAmount / newPlan.duration);
+      setDailyAmount(daily);
+      setCanSaveToday(true);
+      
       setLoading(false);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create saving plan');
@@ -63,25 +100,54 @@ const SavingPlan = () => {
     }
   };
 
-  const updateSavedAmount = async () => {
-    if (!savingAmount || savingAmount <= 0) {
-      setError('Please enter a valid amount');
-      return;
-    }
-
+  const addDailySavings = async () => {
+    if (!plan || plan.isCompleted || !canSaveToday) return;
+    
     try {
       setLoading(true);
       const response = await axiosInstance.put('/savingplans/update', {
         savingPlanId: plan._id,
-        amount: Number(savingAmount)
+        amount: dailyAmount  // Make sure this is a number
       });
-      setPlan(response.data.savingPlan);
-      setSavingAmount(0); // Reset input after update
+      
+      console.log('Update response:', response.data); // Debug log
+      
+      const updatedPlan = response.data.savingPlan;
+      setPlan(updatedPlan);
+      
+      // Update daily amount based on response
+      if (updatedPlan.adjustedDailyAmount) {
+        setDailyAmount(updatedPlan.adjustedDailyAmount);
+      } else {
+        // Fallback calculation if backend doesn't provide it
+        const daysRemaining = Math.max(1, Math.ceil(
+          (new Date(updatedPlan.endDate) - new Date()) / (1000 * 60 * 60 * 24)
+        ));
+        const remainingAmount = updatedPlan.goalAmount - updatedPlan.currentlySaved;
+        setDailyAmount(Math.ceil(remainingAmount / daysRemaining));
+      }
+      
+      setCanSaveToday(false);
+      
+      if (response.data.rewardPet) {
+        setRewardPet(response.data.rewardPet);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
+      
       setLoading(false);
     } catch (err) {
+      console.error('Update error:', err.response?.data); // More detailed error logging
       setError(err.response?.data?.message || 'Failed to update saving amount');
       setLoading(false);
     }
+  };
+
+  const resetPlanAndStartNew = () => {
+    setPlan(null);
+    setRewardPet(null);
+    setCanSaveToday(true);
+    setDailyAmount(0);
   };
 
   const calculateProgress = () => {
@@ -93,73 +159,142 @@ const SavingPlan = () => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PHP' }).format(amount);
   };
 
-  // Render loading state
+  const getRarityStyle = (rarity) => {
+    switch (rarity) {
+      case 'Legendary': return 'bg-gradient-to-r from-yellow-400 to-amber-600 text-white';
+      case 'Epic': return 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white';
+      case 'Rare': return 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white';
+      case 'Uncommon': return 'bg-gradient-to-r from-green-500 to-lime-500 text-white';
+      default: return 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-800';
+    }
+  };
+
+  const getProgressColor = (percentage) => {
+    if (percentage >= 100) return 'bg-gradient-to-r from-amber-400 to-orange-500';
+    if (percentage >= 75) return 'bg-gradient-to-r from-emerald-400 to-teal-500';
+    if (percentage >= 50) return 'bg-gradient-to-r from-blue-400 to-indigo-500';
+    if (percentage >= 25) return 'bg-gradient-to-r from-violet-400 to-purple-500';
+    return 'bg-gradient-to-r from-gray-300 to-gray-400';
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-xl font-semibold text-gray-700">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <motion.div 
+          className="flex flex-col items-center"
+          animate={{ 
+            scale: [1, 1.05, 1],
+            rotate: [0, 5, -5, 0]
+          }}
+          transition={{ 
+            repeat: Infinity, 
+            duration: 1.5,
+            ease: "easeInOut"
+          }}
+        >
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <span className="text-xl font-bold text-gray-700">
+            Loading your savings...
+          </span>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-100 p-6">
+    <div className="min-h-screen flex flex-col bg-gray-50 p-6">
+      {/* Confetti effect */}
+      {showConfetti && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          {[...Array(50)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute text-2xl"
+              initial={{ 
+                y: -100,
+                x: Math.random() * window.innerWidth - window.innerWidth / 2,
+                opacity: 1,
+                scale: 1
+              }}
+              animate={{ 
+                y: window.innerHeight,
+                x: Math.random() * 200 - 100,
+                opacity: 0,
+                scale: 0.5,
+                rotate: Math.random() * 360
+              }}
+              transition={{ 
+                duration: 3,
+                ease: "linear"
+              }}
+              style={{
+                color: ['#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#ef4444'][Math.floor(Math.random() * 5)]
+              }}
+            >
+              {['💰', '🎯', '🏆', '✨', '🤑', '💎'][Math.floor(Math.random() * 6)]}
+            </motion.div>
+          ))}
+        </div>
+      )}
+
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <span className="font-bold">Error:</span> {error}
-          <button 
-            className="float-right text-red-700 hover:text-red-900"
+        <motion.div 
+          className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg mb-6 flex justify-between items-center shadow-md"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <span className="font-medium">{error}</span>
+          <button
+            className="ml-4 text-red-500 hover:text-red-700 transition-colors"
             onClick={() => setError(null)}
           >
             &times;
           </button>
-        </div>
+        </motion.div>
       )}
 
-      <h1 className="text-3xl font-bold text-center mb-8 text-blue-600">Your Saving Journey</h1>
+      <motion.h1 
+        className="text-4xl md:text-5xl font-bold text-center mb-8 text-gray-800"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        Savings Challenge
+      </motion.h1>
 
       {!plan ? (
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Create a New Saving Plan</h2>
-          <p className="text-gray-600 mb-6">
-            Select a predefined plan or customize your own to start your saving journey.
-            Each plan will reward you with a unique virtual pet when completed!
-          </p>
-
+        <motion.div 
+          className="bg-white rounded-xl shadow-lg p-6 mb-8 max-w-lg mx-auto w-full border border-gray-200"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">
+            Start Your Savings Journey
+          </h2>
           <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">Choose a Predefined Plan:</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {predefinedPlans.map((predefPlan) => (
-                <div 
-                  key={predefPlan.name}
-                  className="border rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-colors"
-                  onClick={() => selectPredefinedPlan(predefPlan)}
-                >
-                  <h4 className="font-medium text-lg">{predefPlan.name}</h4>
-                  <p className="text-gray-600">Goal: {formatCurrency(predefPlan.amount)}</p>
-                  <p className="text-gray-600">Duration: {predefPlan.duration} days</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4">Customize Your Plan:</h3>
             <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              <motion.div 
+                className="flex-1"
+                whileHover={{ scale: 1.02 }}
+              >
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Goal Amount (₱)
                 </label>
                 <input
                   type="number"
                   min="100"
+                  step="100"
                   value={goalAmount}
-                  onChange={(e) => setGoalAmount(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setGoalAmount(Number(e.target.value))}  // Ensure conversion to number
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+              </motion.div>
+              <motion.div 
+                className="flex-1"
+                whileHover={{ scale: 1.02 }}
+              >
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Duration (days)
                 </label>
                 <input
@@ -167,101 +302,265 @@ const SavingPlan = () => {
                   min="7"
                   max="365"
                   value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setDuration(Number(e.target.value))}  // Ensure conversion to number
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
-              </div>
+              </motion.div>
             </div>
           </div>
 
-          <button
+          <motion.button
             onClick={createSavingPlan}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-all font-bold shadow-md"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            Start My Saving Plan
-          </button>
-        </div>
+            Start Challenge 🚀
+          </motion.button>
+        </motion.div>
       ) : (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl text-gray-600  font-semibold mb-4">Your Current Saving Plan</h2>
-          
-          <div className="mb-6">
-            <div className="flex justify-between mb-1">
-              <span className="font-medium text-gray-600">Progress: {formatCurrency(plan.currentlySaved)} of {formatCurrency(plan.goalAmount)}</span>
-              <span className="text-sm font-medium">{Math.round(calculateProgress())}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
-                style={{ width: `${calculateProgress()}%` }}
-              ></div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-gray-600">Plan Details</h3>
-              <p className="text-gray-600">Goal Amount: {formatCurrency(plan.goalAmount)}</p>
-              <p className="text-gray-600">Duration: {plan.duration} days</p>
-              <p className="text-gray-600">Status: {plan.isCompleted ? 'Completed' : 'In Progress'}</p>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-gray-600">Pet Reward</h3>
-              {plan.petReward && (
-                <>
-                  <p className="text-gray-600">Name: {plan.petReward.name}</p>
-                  <p className="text-gray-600">Type: {plan.petReward.type}</p>
-                  <p className="text-gray-600">Rarity: <span className={`font-semibold ${
-                    plan.petReward.rarity === 'Legendary' ? 'text-yellow-500' :
-                    plan.petReward.rarity === 'Epic' ? 'text-purple-500' :
-                    plan.petReward.rarity === 'Rare' ? 'text-blue-500' :
-                    plan.petReward.rarity === 'Uncommon' ? 'text-green-500' : 'text-gray-500'
-                  }`}>{plan.petReward.rarity}</span></p>
-                  <p className="text-gray-600">Special Ability: {plan.petReward.specialAbility}</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {!plan.isCompleted && (
-            <div className="mt-6">
-              <h3 className="text-lg text-gray-600 font-semibold mb-2">Update Your Progress</h3>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  value={savingAmount}
-                  onChange={(e) => setSavingAmount(Number(e.target.value))}
-                  placeholder="Amount saved today"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <div className="max-w-lg mx-auto w-full">
+          <motion.div 
+            className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">
+              Your Savings Progress
+            </h2>
+            <div className="mb-6">
+              <div className="flex justify-between mb-2">
+                <span className="font-bold text-gray-700">
+                  {formatCurrency(plan.currentlySaved)} of {formatCurrency(plan.goalAmount)}
+                </span>
+                <span className="font-bold text-blue-600">{Math.round(calculateProgress())}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 shadow-inner overflow-hidden">
+                <motion.div
+                  className={`h-3 rounded-full ${getProgressColor(calculateProgress())}`}
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${calculateProgress()}%` }}
+                  transition={{ duration: 1, type: "spring" }}
                 />
-                <button
-                  onClick={updateSavedAmount}
-                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Update
-                </button>
               </div>
             </div>
-          )}
 
-{plan.isCompleted && (
-  <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-    <h3 className="text-xl font-bold text-green-600 mb-2">Congratulations!</h3>
-    <p>You've completed your saving goal and earned your pet reward!</p>
-    <button
-      onClick={() => setPlan(null)} // Reset the plan to allow creating a new one
-      className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-    >
-      Create a New Saving Plan
-    </button>
-  </div>
-)}
+            {!plan.isCompleted && (
+              <div className="mt-6">
+                <h3 className="text-lg font-bold mb-3 text-gray-700">
+                  Daily Savings
+                </h3>
+                <div className="bg-blue-50 p-4 rounded-lg mb-4 border border-blue-100">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-blue-600 font-medium">Today's Amount</p>
+                      <p className="text-2xl font-bold text-blue-800">{formatCurrency(dailyAmount)}</p>
+                    </div>
+                    <motion.button
+                      onClick={addDailySavings}
+                      disabled={!canSaveToday || loading}
+                      className={`px-6 py-3 rounded-lg font-bold shadow-md ${
+                        canSaveToday 
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      whileHover={canSaveToday ? { scale: 1.05 } : {}}
+                      whileTap={canSaveToday ? { scale: 0.95 } : {}}
+                    >
+                      {canSaveToday ? 'Add Today\'s Savings 💰' : 'Already Saved Today'}
+                    </motion.button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                    <p className="text-xs text-gray-500 mb-1">Days Remaining</p>
+                    <p className="font-bold text-gray-800">
+                      {Math.max(0, Math.ceil((new Date(plan.endDate) - new Date()) / (1000 * 60 * 60 * 24)))}
+                    </p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg border border-gray-200">
+                    <p className="text-xs text-gray-500 mb-1">Amount Left</p>
+                    <p className="font-bold text-gray-800">
+                      {formatCurrency(plan.goalAmount - plan.currentlySaved)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+
+          {plan.isCompleted && (
+            <motion.div 
+              className="bg-white rounded-xl shadow-lg p-6 border border-gray-200"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring" }}
+            >
+              <div className="flex items-center justify-center mb-4">
+                <motion.div 
+                  className="w-16 h-16 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-md"
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    rotate: [0, 10, -10, 0]
+                  }}
+                  transition={{
+                    repeat: Infinity,
+                    repeatType: "reverse",
+                    duration: 2
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </motion.div>
+              </div>
+              <h3 className="text-2xl font-bold text-center text-gray-800 mb-2">
+                Challenge Complete!
+              </h3>
+              <p className="text-center text-gray-600 mb-6">
+                You've unlocked a reward! 🎉
+              </p>
+              
+              {rewardPet && (
+                <motion.div 
+                  className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <h4 className="text-xl font-bold text-center text-gray-800 mb-4">
+                    Your Reward Pet
+                  </h4>
+                  
+                  <div className="flex justify-center mb-4">
+                    <div className={`px-3 py-1 rounded-full text-sm font-bold ${getRarityStyle(rewardPet.rarity)} shadow-sm`}>
+                      {rewardPet.rarity} Pet
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-center mb-4">
+                    <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-4xl mb-3 shadow-md">
+                      {getPetEmoji(rewardPet.type)}
+                    </div>
+                    <h5 className="text-xl font-bold text-gray-800">{rewardPet.name}</h5>
+                    <p className="text-gray-600">{rewardPet.type}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <p className="text-xs text-gray-500 mb-1">Color</p>
+                      <p className="font-bold text-gray-800">{rewardPet.color}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <p className="text-xs text-gray-500 mb-1">Level</p>
+                      <p className="font-bold text-gray-800">{rewardPet.level}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 col-span-2">
+                      <p className="text-xs text-gray-500 mb-1">Special Ability</p>
+                      <p className="font-bold text-gray-800">{rewardPet.specialAbility}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white p-2 rounded-lg border border-blue-100 text-center">
+                      <p className="text-xs text-blue-500 mb-1">Strength</p>
+                      <div className="flex justify-center">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600">
+                          {rewardPet.strength}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-green-100 text-center">
+                      <p className="text-xs text-green-500 mb-1">Agility</p>
+                      <div className="flex justify-center">
+                        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center font-bold text-green-600">
+                          {rewardPet.agility}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-amber-100 text-center">
+                      <p className="text-xs text-amber-500 mb-1">Intelligence</p>
+                      <div className="flex justify-center">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center font-bold text-amber-600">
+                          {rewardPet.intelligence}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              
+              <motion.button
+                onClick={resetPlanAndStartNew}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-all font-bold shadow-md"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Start New Challenge 🏆
+              </motion.button>
+            </motion.div>
+          )}
         </div>
       )}
     </div>
   );
 };
+
+// Helper function to get pet emoji
+function getPetEmoji(type) {
+  const emojiMap = {
+    Dog: '🐕',
+    Cat: '🐈',
+    Dragon: '🐉',
+    Bird: '🦜',
+    Rabbit: '🐇',
+    Fox: '🦊',
+    Wolf: '🐺',
+    Turtle: '🐢',
+    Lizard: '🦎',
+    Tiger: '🐅',
+    Lion: '🦁',
+    Bear: '🐻',
+    Unicorn: '🦄',
+    Penguin: '🐧',
+    Frog: '🐸',
+    Dolphin: '🐬',
+    Shark: '🦈',
+    Octopus: '🐙',
+    Deer: '🦌',
+    Bat: '🦇',
+    Panda: '🐼',
+    Raccoon: '🦝',
+    Koala: '🐨',
+    Hedgehog: '🦔',
+    Squirrel: '🐿️',
+    Snake: '🐍',
+    Crocodile: '🐊',
+    Horse: '🐎',
+    Elephant: '🐘',
+    Phoenix: '🔥',
+    Griffin: '🦅',
+    Slime: '👾',
+    Bee: '🐝',
+    Ant: '🐜',
+    Spider: '🕷️',
+    Rat: '🐀',
+    Hamster: '🐹',
+    Giraffe: '🦒',
+    Zebra: '🦓',
+    Leopard: '🐆',
+    Cheetah: '🐆',
+    Eagle: '🦅',
+    Parrot: '🦜',
+    Seahorse: '🦄',
+    Crab: '🦀',
+    Moose: '🫎',
+    Goat: '🐐',
+    Ox: '🐂',
+    Jellyfish: '🎐'
+  };
+  return emojiMap[type] || '🐾';
+}
 
 export default SavingPlan;

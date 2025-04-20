@@ -1,13 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+    LayoutDashboard,
+    PiggyBank,
+    Gift,
+    ChevronFirst,
+    ChevronLast,
+    Menu,
+    LogOut
+} from 'lucide-react';
 
-const NavBar = ({ setSelectedSection, selectedSection }) => {
+const Sidebar = ({ setSelectedSection, selectedSection, children }) => {
     const navigate = useNavigate();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+    useEffect(() => {
+        const handleResize = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+
+            if (mobile) {
+                setIsCollapsed(false);
+                setSidebarOpen(false); // Changed from true to false to start closed on mobile
+            } else {
+                setSidebarOpen(true);
+                setIsCollapsed(true);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
+
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const effectiveIsCollapsed = isMobile ? false : isCollapsed;
 
     const clearCookies = () => {
-        const cookies = document.cookie.split(";");
-        cookies.forEach((cookie) => {
+        document.cookie.split(";").forEach((cookie) => {
             const cookieName = cookie.split("=")[0].trim();
             document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
         });
@@ -19,135 +51,114 @@ const NavBar = ({ setSelectedSection, selectedSection }) => {
         navigate("/login");
     };
 
-    const toggleMobileMenu = () => {
-        setMobileMenuOpen(!mobileMenuOpen);
-    };
-
     const handleNavigation = (section) => {
         setSelectedSection(section);
-        setMobileMenuOpen(false);
+        if (isMobile) setSidebarOpen(false);
+    };
+
+    const toggleSidebar = () => {
+        setSidebarOpen(!sidebarOpen);
+    };
+
+    const toggleCollapse = () => {
+        if (!isMobile) {
+            setIsCollapsed(!isCollapsed);
+        }
     };
 
     const navItems = [
-        { name: "Dashboard", section: "dashboard" },
-        { name: "Saving Journey", section: "saving-plan" },
-        { name: "Gift Pets", section: "gift-pets" },
-        { name: "Settings", section: "settings" }
+        { name: "Dashboard", section: "dashboard", icon: <LayoutDashboard size={20} /> },
+        { name: "Saving Journey", section: "saving-plan", icon: <PiggyBank size={20} /> },
+        { name: "Gift Pets", section: "gift-pets", icon: <Gift size={20} /> },
     ];
 
     return (
-        <header className="bg-[#2F3E46] text-white shadow-md">
-            <nav className="container mx-auto px-4 py-4">
-                <div className="flex justify-between items-center">
-                    {/* Brand Name */}
-                    <h1 className="text-xl font-bold z-10">
-                        <a
-                            href="/"
-                            className="hover:text-[#F4A261] transition duration-300"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                handleNavigation("dashboard");
-                            }}
-                        >
-                            <span className="text-[#F4A261]">Pocket</span>Savr
-                        </a>
-                    </h1>
+        <>
+            {/* Mobile Toggle Button */}
+            {isMobile && (
+                <button
+                    onClick={toggleSidebar}
+                    className="fixed top-4 left-4 z-50 p-2 rounded-md bg-indigo-600 text-white shadow-md transition-all"
+                >
+                    <Menu size={24} />
+                </button>
+            )}
 
-                    {/* Desktop Navigation */}
-                    <ul className="hidden md:flex space-x-6">
-                        {navItems.map((item) => (
-                            <li key={item.section}>
-                                <button
-                                    className={`hover:text-[#8EC6D7] transition duration-300 ${
-                                        selectedSection === item.section ? "text-[#F4A261]" : ""
-                                    }`}
-                                    onClick={() => handleNavigation(item.section)}
-                                    aria-current={selectedSection === item.section ? "page" : undefined}
-                                >
-                                    {item.name}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-
-                    {/* Mobile Menu Button */}
-                    <div className="md:hidden flex items-center">
+            {/* Sidebar */}
+            <aside
+                className={`fixed top-0 left-0 h-full bg-indigo-700 text-white shadow-lg z-40 flex flex-col transition-all duration-300 ${effectiveIsCollapsed ? 'w-20' : 'w-64'
+                    } ${isMobile
+                        ? (sidebarOpen ? 'translate-x-0' : '-translate-x-full')
+                        : 'translate-x-0'
+                    }`}
+            >
+                <div className={`flex items-center ${effectiveIsCollapsed ? 'justify-center' : 'justify-between'} p-3 border-b border-indigo-600`}>
+                    {!effectiveIsCollapsed && (
+                        <h1 className="text-xl font-bold text-white">PocketSavr</h1>
+                    )}
+                    {!isMobile && (
                         <button
-                            onClick={toggleMobileMenu}
-                            className="text-white focus:outline-none mr-4"
-                            aria-expanded={mobileMenuOpen}
-                            aria-label="Toggle navigation menu"
+                            onClick={toggleCollapse}
+                            className="p-1.5 rounded-lg hover:bg-indigo-600 transition-colors"
+                            aria-label={effectiveIsCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                         >
-                            <svg 
-                                className="w-6 h-6" 
-                                fill="none" 
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                {mobileMenuOpen ? (
-                                    <path 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
-                                        strokeWidth={2} 
-                                        d="M6 18L18 6M6 6l12 12" 
-                                    />
-                                ) : (
-                                    <path 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
-                                        strokeWidth={2} 
-                                        d="M4 6h16M4 12h16M4 18h16" 
-                                    />
-                                )}
-                            </svg>
+                            {effectiveIsCollapsed ? <ChevronLast size={20} /> : <ChevronFirst size={20} />}
                         </button>
-                    </div>
+                    )}
+                </div>
 
-                    {/* Logout Button (visible on desktop) */}
+                {/* Navigation Items */}
+                <nav className="flex-1 px-3 py-4 space-y-1">
+                    {navItems.map((item) => (
+                        <button
+                            key={item.section}
+                            onClick={() => handleNavigation(item.section)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${selectedSection === item.section
+                                ? 'bg-indigo-600 text-white shadow-md'
+                                : 'hover:bg-indigo-600/80 text-indigo-100'
+                                } ${effectiveIsCollapsed ? 'justify-center' : ''}`}
+                        >
+                            <span className="text-indigo-100">
+                                {item.icon}
+                            </span>
+                            {!effectiveIsCollapsed && (
+                                <span className="font-medium">{item.name}</span>
+                            )}
+                        </button>
+                    ))}
+                </nav>
+
+                {/* Logout Button */}
+                <div className="p-3 border-t border-indigo-600">
                     <button
                         onClick={handleLogout}
-                        className="hidden md:block bg-[#F4A261] text-white py-2 px-4 rounded-lg font-medium hover:bg-[#e08e4f] transition duration-300"
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg hover:bg-indigo-600 text-indigo-100 transition-colors ${effectiveIsCollapsed ? 'justify-center' : ''}`}
                     >
-                        Logout
+                        <LogOut size={20} />
+                        {!effectiveIsCollapsed && <span>Logout</span>}
                     </button>
                 </div>
+            </aside>
 
-                {/* Mobile Navigation Menu */}
-                <div 
-                    className={`fixed inset-0 z-10 bg-[#2F3E46] transform ${
-                        mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
-                    } transition-transform duration-300 ease-in-out md:hidden`}
-                    style={{ top: '60px' }}
-                >
-                    <div className="px-4 py-6 space-y-6 flex flex-col h-full">
-                        <ul className="space-y-6 flex-grow">
-                            {navItems.map((item) => (
-                                <li key={item.section}>
-                                    <button
-                                        className={`text-lg block w-full text-left py-2 ${
-                                            selectedSection === item.section ? "text-[#F4A261]" : "text-white"
-                                        }`}
-                                        onClick={() => handleNavigation(item.section)}
-                                        aria-current={selectedSection === item.section ? "page" : undefined}
-                                    >
-                                        {item.name}
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                        
-                        {/* Logout Button (visible in mobile menu) */}
-                        <button
-                            onClick={handleLogout}
-                            className="w-full bg-[#F4A261] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#e08e4f] transition duration-300 mt-4"
-                        >
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </nav>
-        </header>
+            <div
+                className={`flex-1 transition-all duration-300 ${isMobile && !sidebarOpen ? '' : ''
+                    } ${!isMobile && effectiveIsCollapsed ? 'ml-20' :
+                        !isMobile ? 'ml-64' : ''
+                    }`}
+                style={{ minHeight: 'calc(100vh - 4rem)' }}
+            >
+                {children}
+            </div>
+
+            {/* Overlay for mobile */}
+            {sidebarOpen && isMobile && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-30"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+        </>
     );
 };
 
-export default NavBar;
+export default Sidebar;

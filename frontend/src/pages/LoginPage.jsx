@@ -1,82 +1,146 @@
 import React, { useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { motion } from 'framer-motion';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false); // State to toggle password visibility
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [showPetModal, setShowPetModal] = useState(false);
+    const [starterPet, setStarterPet] = useState(null);
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         try {
             const res = await axiosInstance.post('/login', { email, password });
+            
+            // Store token and user data
             document.cookie = `token=${res.data.token}; path=/`;
-            window.location.href = '/home';
+            
+            // Check if this is first login and has a starter pet
+            if (res.data.firstLogin && res.data.newUserPet) {
+                setStarterPet(res.data.newUserPet);
+                setShowPetModal(true);
+            } else {
+                navigate('/home');
+            }
         } catch (error) {
             console.log('Login error:', error);
             setError('Invalid email or password.');
         }
     };
 
+    const handleCloseModal = () => {
+        setShowPetModal(false);
+        navigate('/home');
+    };
+
+    const getPetEmoji = (type) => {
+        const emojiMap = {
+            Dog: '🐕',
+            Cat: '🐈',
+            Dragon: '🐉',
+            Bird: '🦜',
+            Rabbit: '🐇',
+            Fox: '🦊'
+        };
+        return emojiMap[type] || '🐾';
+    };
+
     return (
-        <div
-            className="min-h-screen flex items-center justify-center px-4 py-6 sm:px-6 md:px-8"
-            style={{ backgroundColor: '#D1E8E2' }} // Sage Green
-        >
-            <div
-                className="w-full max-w-md rounded-2xl shadow-lg p-4 sm:p-6 md:p-8 relative"
-                style={{
-                    backgroundColor: '#F1F2F6', // Cool Light Gray
-                    border: '2px solid #6B5B4C', // Warm Taupe border
-                }}
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
+            {/* Pet Modal */}
+            {showPetModal && starterPet && (
+                <div className="fixed inset-0 bg-black/50  flex items-center justify-center z-50 p-4">
+                    <motion.div 
+                        className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full relative"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                        <h2 className="text-3xl font-bold text-center mb-6 text-indigo-600">
+                            Welcome to Your Savings Journey!
+                        </h2>
+                        <div className="text-center mb-2">
+                            <div className="text-6xl mb-4">
+                                {getPetEmoji(starterPet.type)}
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-800">{starterPet.name}</h3>
+                            <p className="text-gray-600">Your new {starterPet.color.toLowerCase()} {starterPet.type}</p>
+                        </div>
+                        
+                        <div className="bg-indigo-50 rounded-lg p-4 mb-6">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                    <p className="text-xs text-indigo-500">Strength</p>
+                                    <p className="font-bold text-indigo-700">{starterPet.strength}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-indigo-500">Agility</p>
+                                    <p className="font-bold text-indigo-700">{starterPet.agility}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-indigo-500">Intelligence</p>
+                                    <p className="font-bold text-indigo-700">{starterPet.intelligence}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <p className="text-center text-gray-600 mb-6">
+                            Your pet will grow stronger as you save more money! Start your first savings challenge now.
+                        </p>
+                        
+                        <motion.button
+                            onClick={handleCloseModal}
+                            className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-all font-bold shadow-md"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                        >
+                            Continue to Dashboard
+                        </motion.button>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Login Form */}
+            <motion.div
+                className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center border-2 border-blue-100"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 300 }}
             >
-                {/* Brand Name */}
-                <div className="text-center mb-2">
-                    <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: '#2F3E46' }}>
-                        <span style={{ color: '#F4A261' }}>Pocket</span>Savr
-                    </h1>
-                </div>
-                
-                {/* Pet Avatar */}
-                <div className="flex justify-center mb-2 sm:mb-4">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#8EC6D7] flex items-center justify-center shadow-lg border-4 border-[#F4A261] animate-bounce-slow">
-                        {/* Example SVG pet (cat) - scaled for mobile */}
-                        <svg width="80%" height="80%" viewBox="0 0 48 48" fill="none">
-                            <ellipse cx="24" cy="30" rx="14" ry="12" fill="#fff"/>
-                            <ellipse cx="24" cy="30" rx="10" ry="8" fill="#8EC6D7"/>
-                            <ellipse cx="18" cy="28" rx="2" ry="3" fill="#2F3E46"/>
-                            <ellipse cx="30" cy="28" rx="2" ry="3" fill="#2F3E46"/>
-                            <ellipse cx="24" cy="34" rx="3" ry="2" fill="#F4A261"/>
-                            <polygon points="12,18 18,22 16,14" fill="#fff"/>
-                            <polygon points="36,18 30,22 32,14" fill="#fff"/>
-                        </svg>
-                    </div>
-                </div>
-       
-                <h2
-                    className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center"
-                    style={{ color: '#2F3E46' }} // Slate Gray
+                <motion.h1
+                    className="text-4xl sm:text-5xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
                 >
                     Welcome Back!
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+                </motion.h1>
+                <motion.p
+                    className="text-lg sm:text-xl mb-8 text-gray-600"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                >
+                    Log in to continue your savings journey.
+                </motion.p>
+                <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
                         <label
-                            className="block mb-1 font-medium text-sm sm:text-base"
-                            style={{ color: '#6B5B4C' }} // Warm Taupe
+                            className="block mb-2 text-sm font-medium text-gray-700"
                         >
                             Email
                         </label>
                         <input
                             type="email"
-                            className="w-full px-3 sm:px-4 py-2 rounded-lg border focus:outline-none text-sm sm:text-base"
-                            style={{
-                                borderColor: '#6B5B4C', // Warm Taupe
-                                backgroundColor: '#F1F2F6', // Cool Light Gray
-                                color: '#2F3E46', // Slate Gray
-                            }}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
@@ -84,20 +148,14 @@ const LoginPage = () => {
                     </div>
                     <div>
                         <label
-                            className="block mb-1 font-medium text-sm sm:text-base"
-                            style={{ color: '#6B5B4C' }} // Warm Taupe
+                            className="block mb-2 text-sm font-medium text-gray-700"
                         >
                             Password
                         </label>
                         <div className="relative">
                             <input
                                 type={showPassword ? 'text' : 'password'}
-                                className="w-full px-3 sm:px-4 py-2 rounded-lg border focus:outline-none text-sm sm:text-base"
-                                style={{
-                                    borderColor: '#6B5B4C', // Warm Taupe
-                                    backgroundColor: '#F1F2F6', // Cool Light Gray
-                                    color: '#2F3E46', // Slate Gray
-                                }}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
@@ -105,63 +163,41 @@ const LoginPage = () => {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-2 text-sm text-gray-600 hover:text-gray-800"
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-gray-800"
+                                aria-label="Toggle password visibility"
                             >
-                                {showPassword ? 'Hide' : 'Show'}
+                                {showPassword ? <FaEyeSlash /> : <FaEye />}
                             </button>
                         </div>
                     </div>
                     {error && (
-                        <div className="text-xs sm:text-sm text-center" style={{ color: '#EF476F' }}>
+                        <motion.div
+                            className="text-sm text-red-500"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                        >
                             {error}
-                        </div>
+                        </motion.div>
                     )}
-                    <button
+                    <motion.button
                         type="submit"
-                        className="w-full py-2 rounded-lg font-semibold shadow transition-transform duration-150 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base"
-                        style={{
-                            backgroundColor: '#F4A261', // Soft Orange
-                            color: '#fff',
-                            border: 'none',
-                        }}
+                        className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-lg hover:bg-blue-700 transition-all"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                     >
-                        <span>Login</span>
-                        {/* Coin Icon */}
-                        <svg width="18" height="18" viewBox="0 0 22 22" fill="none" className="sm:w-[22px] sm:h-[22px]">
-                            <circle cx="11" cy="11" r="10" fill="#FFF3B0" stroke="#F4A261" strokeWidth="2"/>
-                            <text x="11" y="16" textAnchor="middle" fill="#F4A261" fontSize="14" fontWeight="bold">$</text>
-                        </svg>
-                    </button>
-                    
-                    <div className="flex justify-between text-center mt-4 text-xs sm:text-sm" style={{ color: '#6B5B4C' }}>
-                        <a href="/forgot-password">Forgot password?</a>
-                        <a href="/register">Create account</a>
-                    </div>
+                        Log In
+                    </motion.button>
                 </form>
-                
-                {/* Footer with brand */}
-                <div className="mt-6 pt-4 text-center text-xs sm:text-sm" style={{ color: '#6B5B4C' }}>
-                    <p>© 2025 <strong>PocketSavr</strong> - Save with joy!</p>
+                <div className="mt-6 text-sm text-gray-600">
+                    <a href="/forgot-password" className="hover:text-blue-600">
+                        Forgot password?
+                    </a>
+                    <span className="mx-2">|</span>
+                    <a href="/register" className="hover:text-blue-600">
+                        Create account
+                    </a>
                 </div>
-            </div>
-            {/* Animation keyframes for bounce */}
-            <style>
-                {`
-                .animate-bounce-slow {
-                    animation: bounce 2s infinite;
-                }
-                @keyframes bounce {
-                    0%, 100% { transform: translateY(0);}
-                    50% { transform: translateY(-10px);}
-                }
-                
-                @media (max-width: 640px) {
-                    input, button {
-                        font-size: 16px; /* Prevents zoom on mobile */
-                    }
-                }
-                `}
-            </style>
+            </motion.div>
         </div>
     );
 };
