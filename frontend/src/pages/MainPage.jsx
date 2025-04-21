@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Sidebar from '../components/navbar'
+import Sidebar from '../components/Sidebar';
 import DefaultPage from '../default/DefaultPage';
 import SavingPlan from './SavingPlan';
 import Dashboard from './Dashboard';
