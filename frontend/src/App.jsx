@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import RegisterPage from './pages/RegisterPage';
 import DefaultPage from './default/DefaultPage';
 import MainPage from './pages/MainPage';
+import PetVsEnvironment from './pages/PetVsEnvironment';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
 
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path='/petvsenvironment' element={<PetVsEnvironment />} />
         {/* Catch-all route for unimplemented features */}
         <Route path="*" element={<DefaultPage />} />
       </Routes>

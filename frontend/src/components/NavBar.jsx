@@ -7,7 +7,8 @@ import {
     ChevronFirst,
     ChevronLast,
     Menu,
-    LogOut
+    LogOut,
+    PawPrint
 } from 'lucide-react';
 
 const Sidebar = ({ setSelectedSection, selectedSection, children }) => {
@@ -70,6 +71,8 @@ const Sidebar = ({ setSelectedSection, selectedSection, children }) => {
         { name: "Dashboard", section: "dashboard", icon: <LayoutDashboard size={20} /> },
         { name: "Saving Journey", section: "saving-plan", icon: <PiggyBank size={20} /> },
         { name: "Gift Pets", section: "gift-pets", icon: <Gift size={20} /> },
+        { name: "Pet vs Environment", section: "pet-vs-environment", icon: <PawPrint size={20} /> },
+    
     ];
 
     return (
