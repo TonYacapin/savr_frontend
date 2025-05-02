@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import Sidebar from '../components/navbar'
+import Sidebar from '../components/Sidebar';
 import DefaultPage from '../default/DefaultPage';
 import SavingPlan from './SavingPlan';
 import Dashboard from './Dashboard';
+import PetVsEnvironment from './PetVsEnvironment';
 
 const MainPage = () => {
     const [selectedSection, setSelectedSection] = useState("dashboard");
@@ -15,6 +16,11 @@ const MainPage = () => {
                 return <DefaultPage />;
             case "settings":
                 return <DefaultPage />;
+            case "pet-vs-environment":
+                return <PetVsEnvironment />;
+
+
+
             default:
                 return <Dashboard />;
         }
@@ -23,8 +29,8 @@ const MainPage = () => {
     return (
         <div className="min-h-screen flex">
             {/* Sidebar Navigation */}
-            <Sidebar 
-                setSelectedSection={setSelectedSection} 
+            <Sidebar
+                setSelectedSection={setSelectedSection}
                 selectedSection={selectedSection}
             >
                 {/* Main Content */}
